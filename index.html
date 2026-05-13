@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>MIDI Survivor - 阶段一 音高识别</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #1a1a1f;
+    color: #e8e8ec;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    height: 100%;
+    overflow: hidden;
+  }
+  #main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    gap: 24px;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 500;
+    color: #9aa3b2;
+    margin: 0;
+  }
+  #status {
+    font-size: 16px;
+    color: #6f7689;
+    min-height: 22px;
+  }
+  #startBtn {
+    padding: 14px 36px;
+    font-size: 18px;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  #startBtn:hover:not(:disabled) { background: #2563eb; }
+  #startBtn:disabled { background: #374151; cursor: not-allowed; }
+  #bigNote {
+    font-size: 96px;
+    font-weight: 200;
+    color: #4ade80;
+    min-height: 120px;
+    line-height: 1;
+    font-feature-settings: "tnum";
+    letter-spacing: -2px;
+  }
+  #bigVelocity {
+    font-size: 14px;
+    color: #6f7689;
+    font-feature-settings: "tnum";
+  }
+
+  /* Debug panel bottom-left */
+  #debug {
+    position: fixed;
+    bottom: 12px;
+    left: 12px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid #2a2f3a;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-family: "SF Mono", Monaco, Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.55;
+    color: #b6bcc8;
+    min-width: 260px;
+  }
+  #debug .label { color: #6f7689; display: inline-block; width: 100px; }
+  #debug .value { color: #e8e8ec; }
+  #debug .trigger { color: #4ade80; }
+  #debug .warn { color: #fbbf24; }
+</style>
+</head>
+<body>
+  <div id="main">
+    <h1>MIDI Survivor · 阶段一 · 音高识别测试</h1>
+    <div id="status">点击下方按钮开始（需要麦克风权限）</div>
+    <button id="startBtn">开始麦克风</button>
+    <div id="bigNote">-</div>
+    <div id="bigVelocity">&nbsp;</div>
+  </div>
+
+  <div id="debug">
+    <div><span class="label">状态</span><span class="value" id="dbg-state">未启动</span></div>
+    <div><span class="label">freq (Hz)</span><span class="value" id="dbg-freq">-</span></div>
+    <div><span class="label">note</span><span class="value" id="dbg-note">-</span></div>
+    <div><span class="label">clarity</span><span class="value" id="dbg-clarity">-</span></div>
+    <div><span class="label">rms</span><span class="value" id="dbg-rms">-</span></div>
+    <div><span class="label">rms Δ</span><span class="value" id="dbg-rms-delta">-</span></div>
+    <div><span class="label">ambient rms</span><span class="value" id="dbg-ambient">-</span></div>
+    <div><span class="label">触发阈值</span><span class="value" id="dbg-threshold">-</span></div>
+    <div><span class="label">最近触发</span><span class="trigger" id="dbg-last">-</span></div>
+  </div>
+
+  <script type="module" src="./game.js"></script>
+</body>
+</html>
