@@ -17,14 +17,28 @@ export class PianoDetector {
 
     this.config = {
       bufferSize: 2048,
-      clarityThreshold: 0.9,
+      clarityThreshold: 0.85,        // v2: 0.9 → 0.85（iPad 漏音太多）
       ambientMultiplier: 4,
       octaveWindowMs: 200,
       octaveClarityDelta: 0.05,
       debounceMs: 150,
-      energyDerivativeThreshold: 0.005,
+      energyDerivativeThreshold: 0.002,  // v2: 0.005 → 0.002（流畅弹奏 attack 较柔）
       minFreq: 27.5,
       maxFreq: 4186,
+    };
+
+    // 拒绝原因统计（诊断用）
+    this.stats = {
+      framesAboveAmbient: 0,
+      framesValidPitch: 0,
+      framesEnergySpike: 0,
+      framesAllConditions: 0,
+      triggered: 0,
+      rejectedClarity: 0,    // above ambient + energy spike, 但 clarity 不够
+      rejectedRange: 0,      // above ambient + energy spike + 高 clarity, 但频率超钢琴范围
+      rejectedNoSpike: 0,    // above ambient + valid pitch, 但能量没上扬（attack 漏检）
+      rejectedOctave: 0,     // 全条件满足但被八度过滤
+      rejectedDebounce: 0,   // 全条件满足但 150ms 防抖
     };
 
     this.pitchy = PitchDetector.forFloat32Array(this.config.bufferSize);
@@ -69,7 +83,9 @@ export class PianoDetector {
         } else {
           const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
           this.ambientRms = avg;
-          this.maxObservedRms = Math.max(0.05, avg * 8);
+          // v2: 下限 0.05 → 0.005，适配 iPad 这种超灵敏 mic
+          // （iPad ambient ~0.0002, Mac ambient ~0.005, 旧下限让 iPad velocity 永远 <0.7）
+          this.maxObservedRms = Math.max(0.005, avg * 8);
           resolve(avg);
         }
       };
@@ -103,10 +119,13 @@ export class PianoDetector {
 
     const aboveAmbient = rms > this.ambientRms * this.config.ambientMultiplier;
     const energySpike = rmsDelta > this.config.energyDerivativeThreshold;
-    const validPitch = clarity > this.config.clarityThreshold
-                       && pitch >= this.config.minFreq
-                       && pitch <= this.config.maxFreq
-                       && isFinite(pitch);
+    const clarityOk = clarity > this.config.clarityThreshold;
+    const rangeOk = pitch >= this.config.minFreq && pitch <= this.config.maxFreq && isFinite(pitch);
+    const validPitch = clarityOk && rangeOk;
+
+    if (aboveAmbient) this.stats.framesAboveAmbient++;
+    if (aboveAmbient && validPitch) this.stats.framesValidPitch++;
+    if (aboveAmbient && energySpike) this.stats.framesEnergySpike++;
 
     let triggered = null;
 
@@ -115,8 +134,21 @@ export class PianoDetector {
       this.pitchHistory = this.pitchHistory.filter(h => timestamp - h.time < 500);
     }
 
+    // 诊断：above ambient + valid pitch + 没 energy spike → 漏检 attack
+    if (aboveAmbient && validPitch && !energySpike) {
+      this.stats.rejectedNoSpike++;
+    }
+    // 诊断：above ambient + energy spike + invalid pitch
+    if (aboveAmbient && energySpike && !validPitch) {
+      if (!clarityOk) this.stats.rejectedClarity++;
+      else if (!rangeOk) this.stats.rejectedRange++;
+    }
+
     if (aboveAmbient && energySpike && validPitch) {
-      if (!this._isOctaveError(pitch, clarity, timestamp)) {
+      this.stats.framesAllConditions++;
+      if (this._isOctaveError(pitch, clarity, timestamp)) {
+        this.stats.rejectedOctave++;
+      } else {
         const note = freqToNote(pitch);
         const lastT = this.lastTriggerByNote[note.name] || 0;
         if (timestamp - lastT > this.config.debounceMs) {
@@ -126,7 +158,10 @@ export class PianoDetector {
             velocity, clarity, timestamp,
           };
           this.lastTriggerByNote[note.name] = timestamp;
+          this.stats.triggered++;
           if (this._onTriggerCb) this._onTriggerCb(triggered);
+        } else {
+          this.stats.rejectedDebounce++;
         }
       }
     }

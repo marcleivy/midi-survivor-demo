@@ -173,19 +173,18 @@
     window.addEventListener('unhandledrejection', (e) => {
       showError('[promise] ' + (e.reason && e.reason.message ? e.reason.message : e.reason));
     });
-    // 如果 5 秒后 game.js 还没把按钮"激活"（标志位），说明模块没加载
+    // 如果 15 秒后 game.js 还没加载完，才报错（iOS + esm.sh CDN 可能很慢）
     window.__moduleLoaded = false;
     setTimeout(() => {
       if (!window.__moduleLoaded) {
         showError(
-          '[fatal] game.js 模块未加载。原因通常是：\n' +
-          '  1. 你直接双击了 index.html（file:// 协议）→ Chrome 默认禁止 ES 模块\n' +
-          '  2. 你用了某种「预览面板」打开，URL 不是 http://localhost\n\n' +
-          '修复：在项目目录运行  python3 -m http.server 8000\n' +
-          '然后浏览器打开  http://localhost:8000'
+          '[fatal] 模块加载超时 (>15s)。可能原因：\n' +
+          '  1. 网络慢，esm.sh CDN 无法访问\n' +
+          '  2. 浏览器不支持 ES 模块（Safari < 11 等）\n\n' +
+          '建议：换 Chrome 最新版，刷新页面重试。'
         );
       }
-    }, 5000);
+    }, 15000);
   </script>
   <div id="main">
     <h1>MIDI Survivor · 阶段一 · 音高识别测试</h1>
@@ -224,6 +223,12 @@
     <div><span class="label">ambient rms</span><span class="value" id="dbg-ambient">-</span></div>
     <div><span class="label">触发阈值</span><span class="value" id="dbg-threshold">-</span></div>
     <div><span class="label">最近触发</span><span class="trigger" id="dbg-last">-</span></div>
+    <div style="margin-top:6px;padding-top:6px;border-top:1px solid #2a2f3a;color:#6f7689;font-size:11px;">诊断（每次「标记」自动清零）</div>
+    <div><span class="label">已触发</span><span class="trigger" id="dbg-stat-trig">0</span></div>
+    <div><span class="label">漏 attack</span><span class="value" id="dbg-stat-nospike">0</span> <span style="color:#6f7689">(valid pitch 但能量没上扬)</span></div>
+    <div><span class="label">clarity 卡</span><span class="value" id="dbg-stat-clarity">0</span></div>
+    <div><span class="label">八度过滤</span><span class="value" id="dbg-stat-oct">0</span></div>
+    <div><span class="label">防抖 150ms</span><span class="value" id="dbg-stat-debounce">0</span></div>
   </div>
 
   <script type="module" src="./game.js"></script>

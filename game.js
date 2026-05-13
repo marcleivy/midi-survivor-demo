@@ -2,6 +2,9 @@ import { PianoDetector } from './pitch-detector.js';
 
 window.__moduleLoaded = true;
 console.log('[init] game.js module loaded');
+// 隐藏可能已经触发的「模块加载超时」红框
+const _errBox = document.getElementById('errorBox');
+if (_errBox && _errBox.style.display === 'block') _errBox.style.display = 'none';
 
 const startBtn = document.getElementById('startBtn');
 const statusEl = document.getElementById('status');
@@ -13,6 +16,11 @@ const dbg = {
   deviceLabel: document.getElementById('dbg-device'),
   sampleRate: document.getElementById('dbg-samplerate'),
   audioProc: document.getElementById('dbg-audioproc'),
+  statTrig: document.getElementById('dbg-stat-trig'),
+  statNoSpike: document.getElementById('dbg-stat-nospike'),
+  statClarity: document.getElementById('dbg-stat-clarity'),
+  statOct: document.getElementById('dbg-stat-oct'),
+  statDebounce: document.getElementById('dbg-stat-debounce'),
   freq: document.getElementById('dbg-freq'),
   note: document.getElementById('dbg-note'),
   clarity: document.getElementById('dbg-clarity'),
@@ -62,12 +70,18 @@ function appendLog(entry) {
 document.getElementById('markBtn').addEventListener('click', () => {
   if (!running) return;
   markCount++;
+  // 把上一段的 stats 快照写入日志，然后清零
+  const statsSnapshot = detector ? { ...detector.stats } : null;
   appendLog({
     type: 'mark',
     label: `标记 ${markCount}`,
     timestamp: performance.now(),
     wallTime: new Date().toISOString(),
+    statsBeforeReset: statsSnapshot,
   });
+  if (detector) {
+    Object.keys(detector.stats).forEach(k => detector.stats[k] = 0);
+  }
 });
 
 function buildPayload() {
@@ -76,6 +90,7 @@ function buildPayload() {
     config: detector ? detector.config : null,
     ambientRms: detector ? detector.ambientRms : null,
     maxObservedRms: detector ? detector.maxObservedRms : null,
+    finalStats: detector ? { ...detector.stats } : null,
     sampleRate: audioContext ? audioContext.sampleRate : null,
     userAgent: navigator.userAgent,
     entries: triggerLog,
@@ -252,6 +267,14 @@ function updateDebug() {
     const lt = r.lastTriggered;
     const age = ((performance.now() - lt.timestamp) / 1000).toFixed(1);
     dbg.last.textContent = `${lt.note} v=${lt.velocity.toFixed(2)} (${age}s 前)`;
+  }
+  const s = detector.stats;
+  if (s) {
+    dbg.statTrig.textContent = s.triggered;
+    dbg.statNoSpike.textContent = s.rejectedNoSpike;
+    dbg.statClarity.textContent = s.rejectedClarity;
+    dbg.statOct.textContent = s.rejectedOctave;
+    dbg.statDebounce.textContent = s.rejectedDebounce;
   }
 }
 
