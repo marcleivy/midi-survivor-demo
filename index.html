@@ -197,13 +197,15 @@
 
   <div id="logPanel">
     <div id="logControls">
-      <button id="markBtn">📍 加标记</button>
+      <button id="markBtn">📍 标记</button>
       <button id="downloadBtn">💾 下载</button>
-      <button id="clearBtn">🗑 清空</button>
+      <button id="copyBtn">📋 复制</button>
+      <button id="clearBtn">🗑 清</button>
     </div>
     <div id="logHint">
-      每条测试前点「加标记」做分隔。<br>
-      测完点「下载」生成 json 文件发回。
+      每条测试前点「标记」做分隔。<br>
+      iPad/iPhone 测完优先点「📋 复制」<br>
+      然后粘贴到聊天发回。
     </div>
     <div id="logList"></div>
     <div id="counter"><span id="cntNote">0</span> 个音 · <span id="cntMark">0</span> 个标记</div>
@@ -211,6 +213,9 @@
 
   <div id="debug">
     <div><span class="label">状态</span><span class="value" id="dbg-state">未启动</span></div>
+    <div><span class="label">设备</span><span class="value" id="dbg-device">-</span></div>
+    <div><span class="label">采样率</span><span class="value" id="dbg-samplerate">-</span></div>
+    <div><span class="label">音频处理</span><span class="value" id="dbg-audioproc">-</span></div>
     <div><span class="label">freq (Hz)</span><span class="value" id="dbg-freq">-</span></div>
     <div><span class="label">note</span><span class="value" id="dbg-note">-</span></div>
     <div><span class="label">clarity</span><span class="value" id="dbg-clarity">-</span></div>

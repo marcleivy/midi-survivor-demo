@@ -10,6 +10,9 @@ const bigVel = document.getElementById('bigVelocity');
 
 const dbg = {
   state: document.getElementById('dbg-state'),
+  deviceLabel: document.getElementById('dbg-device'),
+  sampleRate: document.getElementById('dbg-samplerate'),
+  audioProc: document.getElementById('dbg-audioproc'),
   freq: document.getElementById('dbg-freq'),
   note: document.getElementById('dbg-note'),
   clarity: document.getElementById('dbg-clarity'),
@@ -67,8 +70,8 @@ document.getElementById('markBtn').addEventListener('click', () => {
   });
 });
 
-document.getElementById('downloadBtn').addEventListener('click', () => {
-  const payload = {
+function buildPayload() {
+  return {
     exportedAt: new Date().toISOString(),
     config: detector ? detector.config : null,
     ambientRms: detector ? detector.ambientRms : null,
@@ -77,7 +80,11 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
     userAgent: navigator.userAgent,
     entries: triggerLog,
   };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+}
+
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  const text = JSON.stringify(buildPayload(), null, 2);
+  const blob = new Blob([text], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -87,6 +94,37 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+});
+
+document.getElementById('copyBtn').addEventListener('click', async () => {
+  const text = JSON.stringify(buildPayload(), null, 2);
+  // 优先 Clipboard API
+  try {
+    await navigator.clipboard.writeText(text);
+    alert(`✓ 已复制 ${triggerLog.length} 条记录到剪贴板。\n粘贴到聊天发回即可。`);
+    return;
+  } catch (e) {
+    console.warn('clipboard API failed:', e);
+  }
+  // 兜底：弹出全屏 textarea 让用户手动选中复制
+  const overlay = document.createElement('div');
+  overlay.style.cssText =
+    'position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:1000;' +
+    'display:flex;flex-direction:column;padding:20px;gap:10px;';
+  overlay.innerHTML =
+    '<div style="color:#fff;font-size:14px;">长按下方文本框 → 全选 → 拷贝 → 粘贴到聊天发回</div>' +
+    '<button id="closeOverlay" style="padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:16px;">关闭</button>';
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText =
+    'flex:1;width:100%;font:11px monospace;background:#111;color:#0f0;' +
+    'border:1px solid #444;padding:8px;border-radius:4px;';
+  ta.readOnly = true;
+  overlay.appendChild(ta);
+  document.body.appendChild(overlay);
+  overlay.querySelector('#closeOverlay').onclick = () => overlay.remove();
+  ta.focus();
+  ta.select();
 });
 
 document.getElementById('clearBtn').addEventListener('click', () => {
@@ -120,7 +158,7 @@ async function start() {
         autoGainControl: false,
         noiseSuppression: false,
         channelCount: 1,
-        sampleRate: 44100,
+        // 不强制 sampleRate — iOS Safari 会忽略且可能报错，让它自己选
       },
     });
   } catch (err) {
@@ -130,14 +168,33 @@ async function start() {
     return;
   }
 
-  audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
+  // iOS 必须 resume，不然 context 是 suspended 状态
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  try { await audioContext.resume(); } catch (e) { console.warn('resume failed', e); }
+
   const source = audioContext.createMediaStreamSource(stream);
   const analyser = audioContext.createAnalyser();
   analyser.fftSize = 2048;
   analyser.smoothingTimeConstant = 0;
   source.connect(analyser);
 
-  console.log(`[init] audioContext.sampleRate = ${audioContext.sampleRate}`);
+  // 检查 iOS 是否真的按我们要求关掉音频处理
+  const track = stream.getAudioTracks()[0];
+  const trackSettings = track.getSettings ? track.getSettings() : {};
+  console.log('[init] audioContext.sampleRate =', audioContext.sampleRate);
+  console.log('[init] track settings =', JSON.stringify(trackSettings));
+  console.log('[init] track label =', track.label);
+
+  const procFlags = [];
+  if (trackSettings.echoCancellation === true) procFlags.push('EC');
+  if (trackSettings.autoGainControl === true) procFlags.push('AGC');
+  if (trackSettings.noiseSuppression === true) procFlags.push('NS');
+  const audioProcText = procFlags.length === 0
+    ? '✓ 已关闭'
+    : `⚠ ${procFlags.join('+')} 强制开着`;
+  if (dbg.audioProc) dbg.audioProc.textContent = audioProcText;
+  if (dbg.sampleRate) dbg.sampleRate.textContent = audioContext.sampleRate + ' Hz';
+  if (dbg.deviceLabel) dbg.deviceLabel.textContent = (track.label || '未知设备').slice(0, 24);
 
   detector = new PianoDetector(audioContext, analyser);
   detector.onTrigger((evt) => {
