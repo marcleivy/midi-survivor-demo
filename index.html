@@ -78,15 +78,135 @@
   #debug .value { color: #e8e8ec; }
   #debug .trigger { color: #4ade80; }
   #debug .warn { color: #fbbf24; }
+
+  /* 右侧测试日志面板 */
+  #logPanel {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: 280px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid #2a2f3a;
+    border-radius: 6px;
+    padding: 10px;
+    font-family: "SF Mono", Monaco, Menlo, monospace;
+    font-size: 12px;
+    color: #b6bcc8;
+    display: flex;
+    flex-direction: column;
+  }
+  #logControls { display: flex; gap: 6px; margin-bottom: 8px; }
+  #logControls button {
+    flex: 1;
+    padding: 6px 4px;
+    background: #2a2f3a;
+    color: #e8e8ec;
+    border: none;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  #logControls button:hover { background: #3b4252; }
+  #logHint {
+    color: #6f7689;
+    font-size: 11px;
+    margin-bottom: 8px;
+    line-height: 1.5;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #2a2f3a;
+  }
+  #logList {
+    flex: 1;
+    overflow-y: auto;
+    line-height: 1.7;
+  }
+  .log-row { padding: 2px 4px; border-radius: 3px; }
+  .log-row.note { color: #d6dae4; }
+  .log-row.note .n { color: #4ade80; font-weight: 600; display: inline-block; min-width: 36px; }
+  .log-row.note .t { color: #6f7689; font-size: 10px; margin-right: 6px; }
+  .log-row.note .v { color: #93a3b8; font-size: 11px; }
+  .log-row.mark {
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.1);
+    text-align: center;
+    margin: 6px 0;
+    padding: 4px;
+    font-weight: 600;
+  }
+  #counter { color: #6f7689; font-size: 11px; text-align: right; padding-top: 6px; border-top: 1px solid #2a2f3a; }
+
+  #errorBox {
+    display: none;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    background: #4c1d24;
+    border: 1px solid #b91c1c;
+    color: #fecaca;
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-family: "SF Mono", Monaco, Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    z-index: 100;
+  }
+  #errorBox b { color: #fff; }
 </style>
 </head>
 <body>
+  <div id="errorBox"></div>
+
+  <!-- 非模块错误捕获：模块加载失败时也能看到 -->
+  <script>
+    function showError(msg) {
+      const box = document.getElementById('errorBox');
+      box.style.display = 'block';
+      box.innerHTML += msg + '\n\n';
+      console.error(msg);
+    }
+    window.addEventListener('error', (e) => {
+      showError('[error] ' + (e.message || e.error) + (e.filename ? '\n  at ' + e.filename + ':' + e.lineno : ''));
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      showError('[promise] ' + (e.reason && e.reason.message ? e.reason.message : e.reason));
+    });
+    // 如果 5 秒后 game.js 还没把按钮"激活"（标志位），说明模块没加载
+    window.__moduleLoaded = false;
+    setTimeout(() => {
+      if (!window.__moduleLoaded) {
+        showError(
+          '[fatal] game.js 模块未加载。原因通常是：\n' +
+          '  1. 你直接双击了 index.html（file:// 协议）→ Chrome 默认禁止 ES 模块\n' +
+          '  2. 你用了某种「预览面板」打开，URL 不是 http://localhost\n\n' +
+          '修复：在项目目录运行  python3 -m http.server 8000\n' +
+          '然后浏览器打开  http://localhost:8000'
+        );
+      }
+    }, 5000);
+  </script>
   <div id="main">
     <h1>MIDI Survivor · 阶段一 · 音高识别测试</h1>
     <div id="status">点击下方按钮开始（需要麦克风权限）</div>
     <button id="startBtn">开始麦克风</button>
     <div id="bigNote">-</div>
     <div id="bigVelocity">&nbsp;</div>
+  </div>
+
+  <div id="logPanel">
+    <div id="logControls">
+      <button id="markBtn">📍 加标记</button>
+      <button id="downloadBtn">💾 下载</button>
+      <button id="clearBtn">🗑 清空</button>
+    </div>
+    <div id="logHint">
+      每条测试前点「加标记」做分隔。<br>
+      测完点「下载」生成 json 文件发回。
+    </div>
+    <div id="logList"></div>
+    <div id="counter"><span id="cntNote">0</span> 个音 · <span id="cntMark">0</span> 个标记</div>
   </div>
 
   <div id="debug">
